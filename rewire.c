@@ -9,8 +9,9 @@
 
 // ANSI color codes
 #define COLOR_RESET "\033[0m"
-#define COLOR_RED "\033[31m"      // Red for errors and warnings
+#define COLOR_RED "\033[31m"      // Red for errors
 #define COLOR_GREEN "\033[32m"    // Green for success messages
+#define COLOR_ORANGE "\033[33m"   // Orange for warnings
 
 // Function to update the Port node and return whether it was found
 int updatePortNode(xmlDocPtr doc, const char* port_name, const char* capture_value, int generate_csv) {
@@ -102,21 +103,20 @@ void processCSVAndUpdateXML(xmlDocPtr doc) {
             
             // Print warning if the port was not found
             if (!port_found) {
-                fprintf(stderr, COLOR_RED "Warning: Port node '%s' not found for capture value %s\n" COLOR_RESET, port_name, capture_value);
+                fprintf(stderr, COLOR_ORANGE "Warning: Port node '%s' not found for capture value %s\n" COLOR_RESET, port_name, capture_value);
             }
         } else {
-            fprintf(stderr, COLOR_RED "Invalid CSV format in line: %s" COLOR_RESET, line);
+            fprintf(stderr, COLOR_ORANGE "Warning: Invalid CSV format in line: %s" COLOR_RESET, line);
         }
     }
 }
 
 void print_usage(const char* prog_name) {
-    fprintf(stderr, "Usage: %s -g -f ARDOUR_SESSION > MAPPING\n", prog_name);
-    fprintf(stderr, "  or:  %s -f ARDOUR_SESSION < MAPPING\n\n", prog_name);
-    fprintf(stderr, "Connect track's audio ports to input channels in an Ardour session\n");
-    fprintf(stderr, "  -f, --file ARDOUR_SESSION      Specify the Ardour session XML file to process\n");
-    fprintf(stderr, "  -g, --generate             Output input channel:audio port mapping (CSV format)\n");
-    fprintf(stderr, "  -h, --help                 Display this help message\n");
+    printf("Usage: %s -g ARDOUR_SESSION > MAPPING\n", prog_name);
+    printf("  or:  %s ARDOUR_SESSION < MAPPING\n\n", prog_name);
+    printf("Connect track's audio ports to input channels in an Ardour session XML file\n");
+    printf("  -g, --generate             Output input channel:audio port mapping (CSV format)\n");
+    printf("  -h, --help                 Guess what?\n");  
 }
 
 int main(int argc, char *argv[]) {
@@ -124,40 +124,37 @@ int main(int argc, char *argv[]) {
     char* xml_filename = NULL;
 
     struct option long_options[] = {
-        {"file", required_argument, 0, 'f'},
         {"generate", no_argument, 0, 'g'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "f:gh", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "ghv", long_options, NULL)) != -1) {
         switch (opt) {
-            case 'f':
-                xml_filename = optarg;
-                break;
             case 'g':
                 generate_csv = 1;
                 break;
             case 'h':
                 print_usage(argv[0]);
-                return 0;
+                return 0;           
             default:
                 print_usage(argv[0]);
                 return 1;
         }
     }
 
-    if (!xml_filename) {
-        fprintf(stderr, COLOR_RED "Error: XML file must be specified with -f or --file\n" COLOR_RESET);
+    if (optind >= argc) {
+        fprintf(stderr, COLOR_RED "Error: XML file must be specified\n" COLOR_RESET);
         print_usage(argv[0]);
         return 1;
     }
+    xml_filename = argv[optind];
 
     // Load XML document
     xmlDocPtr doc = xmlReadFile(xml_filename, NULL, 0);
     if (doc == NULL) {
-        fprintf(stderr, COLOR_RED "Could not parse file %s\n" COLOR_RESET, xml_filename);
+        fprintf(stderr, COLOR_RED "Error: Could not parse file %s\n" COLOR_RESET, xml_filename);
         return 1;
     }
 
@@ -170,7 +167,7 @@ int main(int argc, char *argv[]) {
 
         // Save the modified XML document after all updates
         if (xmlSaveFormatFileEnc(xml_filename, doc, "UTF-8", 1) == -1) {
-            fprintf(stderr, COLOR_RED "Error saving XML file %s\n" COLOR_RESET, xml_filename);
+            fprintf(stderr, COLOR_RED "Error: saving XML file %s\n" COLOR_RESET, xml_filename);
         }
     }
 
