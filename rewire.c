@@ -14,7 +14,7 @@
 #define COLOR_ORANGE "\033[33m"   // Orange for warnings
 
 // Function to update the Port node and return whether it was found
-int updatePortNode(xmlDocPtr doc, const char* port_name, const char* capture_value, int generate_csv) {
+static int updatePortNode(xmlDocPtr doc, const char* port_name, const char* capture_value, int generate_csv) {
     xmlXPathContextPtr xpathCtx; 
     xmlXPathObjectPtr xpathObj;
 
@@ -84,7 +84,7 @@ int updatePortNode(xmlDocPtr doc, const char* port_name, const char* capture_val
     return port_found; // Return whether a port node was found
 }
 
-void processCSVAndUpdateXML(xmlDocPtr doc) {
+static void processCSVAndUpdateXML(xmlDocPtr doc) {
     char line[256];
     while (fgets(line, sizeof(line), stdin)) {
         int capture;
@@ -111,7 +111,7 @@ void processCSVAndUpdateXML(xmlDocPtr doc) {
     }
 }
 
-void print_usage(const char* prog_name) {
+static void print_usage(const char* prog_name) {
     printf("Usage: %s -g ARDOUR_SESSION > MAPPING\n", prog_name);
     printf("  or:  %s ARDOUR_SESSION < MAPPING\n\n", prog_name);
     printf("Connect track's audio ports to input channels in an Ardour session XML file\n");
