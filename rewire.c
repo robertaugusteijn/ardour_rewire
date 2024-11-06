@@ -14,25 +14,7 @@
 #define COLOR_ORANGE "\033[33m"   // Orange for warnings
 
 // Function to update the Port node and return whether it was found
-static int updatePortNode(xmlDocPtr doc, const char* port_name, const char* capture_value, int generate_csv) {
-    xmlXPathContextPtr xpathCtx; 
-    xmlXPathObjectPtr xpathObj;
-
-    // Create XPath evaluation context
-    xpathCtx = xmlXPathNewContext(doc);
-    if (xpathCtx == NULL) {
-        fprintf(stderr, COLOR_RED "Error: unable to create new XPath context\n" COLOR_RESET);
-        return -1; // Indicate failure
-    }
-
-    // Evaluate XPath expression
-    xpathObj = xmlXPathEvalExpression((const xmlChar *)"/Session/Routes/Route/IO[@direction='Input']/Port[@type='audio']", xpathCtx);
-    if (xpathObj == NULL) {
-        fprintf(stderr, COLOR_RED "Error: unable to evaluate xpath expression\n" COLOR_RESET);
-        xmlXPathFreeContext(xpathCtx);
-        return -1; // Indicate failure
-    }
-
+static int updatePortNode(xmlXPathObjectPtr xpathObj, const char* port_name, const char* capture_value, int generate_csv) {
     // Track if a port node was found and updated
     int port_found = 0;
 
@@ -77,14 +59,10 @@ static int updatePortNode(xmlDocPtr doc, const char* port_name, const char* capt
         xmlFree(name_attr);
     }
 
-    // Cleanup
-    xmlXPathFreeObject(xpathObj);
-    xmlXPathFreeContext(xpathCtx);
-
     return port_found; // Return whether a port node was found
 }
 
-static void processCSVAndUpdateXML(xmlDocPtr doc) {
+static void processCSVAndUpdateXML(xmlXPathObjectPtr xpathObj) {
     char line[256];
     while (fgets(line, sizeof(line), stdin)) {
         int capture;
@@ -97,7 +75,7 @@ static void processCSVAndUpdateXML(xmlDocPtr doc) {
             snprintf(capture_value, sizeof(capture_value), "system:capture_%d", capture);
 
             // Update the XML document in memory and check if the port was found
-            if ((port_found = updatePortNode(doc, port_name, capture_value, 0)) < 0) {
+            if ((port_found = updatePortNode(xpathObj, port_name, capture_value, 0)) < 0) {
             	return;
             }
             
@@ -158,20 +136,43 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Create XPath evaluation context
+    xmlXPathContextPtr xpathCtx = xmlXPathNewContext(doc);
+    if (xpathCtx == NULL) {
+        fprintf(stderr, COLOR_RED "Error: unable to create new XPath context\n" COLOR_RESET);
+        xmlFreeDoc(doc);
+        return 1;
+    }
+
+    // Evaluate XPath expression
+    xmlXPathObjectPtr xpathObj = xmlXPathEvalExpression((const xmlChar *)"/Session/Routes/Route/IO[@direction='Input']/Port[@type='audio']", xpathCtx);
+    if (xpathObj == NULL) {
+        fprintf(stderr, COLOR_RED "Error: unable to evaluate xpath expression\n" COLOR_RESET);
+        xmlXPathFreeContext(xpathCtx);
+        xmlFreeDoc(doc);
+        return 1;
+    }
+    
     if (generate_csv) {
         // Generate CSV to stdout
-        updatePortNode(doc, NULL, NULL, 1);
+        updatePortNode(xpathObj, NULL, NULL, 1);
     } else {
         // Update XML from CSV read from stdin
-        processCSVAndUpdateXML(doc);
+        processCSVAndUpdateXML(xpathObj);
 
         // Save the modified XML document after all updates
         if (xmlSaveFormatFileEnc(xml_filename, doc, "UTF-8", 1) == -1) {
             fprintf(stderr, COLOR_RED "Error: saving XML file %s\n" COLOR_RESET, xml_filename);
+            xmlXPathFreeObject(xpathObj);
+            xmlXPathFreeContext(xpathCtx);
+            xmlFreeDoc(doc);
+            return 1;
         }
     }
 
-    // Free the document
+    // Cleanup
+    xmlXPathFreeObject(xpathObj);
+    xmlXPathFreeContext(xpathCtx);
     xmlFreeDoc(doc);
     xmlCleanupParser();
 
