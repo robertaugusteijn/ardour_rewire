@@ -14,7 +14,7 @@
 #define COLOR_ORANGE "\033[33m"   // Orange for warnings
 
 // Function to update the Port node and return whether it was found
-static int updatePortNode(xmlXPathObjectPtr xpathObj, const char* port_name, const char* capture_value, int generate_csv) {
+static int updatePortNode(xmlXPathObjectPtr xpathObj, const char* port_name, const char* capture_value) {
     // Track if a port node was found and updated
     int port_found = 0;
 
@@ -23,37 +23,51 @@ static int updatePortNode(xmlXPathObjectPtr xpathObj, const char* port_name, con
     for (int i = 0; i < nodes->nodeNr; i++) {
         xmlNodePtr portNode = nodes->nodeTab[i];
         xmlChar* name_attr = xmlGetProp(portNode, (const xmlChar *)"name");
-        if (generate_csv) {
-            if (name_attr) {
-                // Find <Connection> child with "other" attribute containing "system:capture_X"
-                xmlNodePtr connectionNode = portNode->children;
-                while (connectionNode) {
-                    if (xmlStrcmp(connectionNode->name, (const xmlChar *)"Connection") == 0) {
-	                    int capture;
-                        xmlChar* other_attr = xmlGetProp(connectionNode, (const xmlChar *)"other");
-                        if (other_attr && (sscanf((const char *)other_attr, "system:capture_%d", &capture) == 1)) {
-                            // Output to stdout in CSV format
-                            printf("%d,%s\n", capture, (const char *)name_attr);
-                            port_found++;
 
-                            xmlFree(other_attr);
-                            break;
-                        }
+        // Update XML with new Connection node if port_name matches
+        if (name_attr && xmlStrcmp(name_attr, (const xmlChar *)port_name) == 0) {
+            xmlNodePtr new_node = xmlNewChild(portNode, NULL, (const xmlChar *)"Connection", NULL);
+            xmlNewProp(new_node, (const xmlChar *)"other", (const xmlChar *)capture_value);
+
+            fprintf(stderr, COLOR_GREEN "%s : %s\n" COLOR_RESET, capture_value, port_name);
+            port_found++;  // Mark that the port was found and updated
+            xmlFree(name_attr);
+            break;
+        }
+        xmlFree(name_attr);
+    }
+
+    return port_found; // Return whether a port node was found
+}
+
+static int generateCSV(xmlXPathObjectPtr xpathObj) {
+    // Track if a port node was found and updated
+    int port_found = 0;
+
+    // Iterate over the resulting nodes
+    xmlNodeSetPtr nodes = xpathObj->nodesetval;
+    for (int i = 0; i < nodes->nodeNr; i++) {
+        xmlNodePtr portNode = nodes->nodeTab[i];
+        xmlChar* name_attr = xmlGetProp(portNode, (const xmlChar *)"name");
+        
+        if (name_attr) {
+            // Find <Connection> child with "other" attribute containing "system:capture_X"
+            xmlNodePtr connectionNode = portNode->children;
+            while (connectionNode) {
+                if (xmlStrcmp(connectionNode->name, (const xmlChar *)"Connection") == 0) {
+                    int capture;
+                    xmlChar* other_attr = xmlGetProp(connectionNode, (const xmlChar *)"other");
+                    if (other_attr && (sscanf((const char *)other_attr, "system:capture_%d", &capture) == 1)) {
+                        // Output to stdout in CSV format
+                        printf("%d,%s\n", capture, (const char *)name_attr);
+                        port_found++;
+
                         xmlFree(other_attr);
+                        break;
                     }
-                    connectionNode = connectionNode->next;
+                    xmlFree(other_attr);
                 }
-            }
-        } else {
-            // Update XML with new Connection node if port_name matches
-            if (name_attr && xmlStrcmp(name_attr, (const xmlChar *)port_name) == 0) {
-                xmlNodePtr new_node = xmlNewChild(portNode, NULL, (const xmlChar *)"Connection", NULL);
-                xmlNewProp(new_node, (const xmlChar *)"other", (const xmlChar *)capture_value);
-
-                fprintf(stderr, COLOR_GREEN "%s : %s\n" COLOR_RESET, capture_value, port_name);
-                port_found++;  // Mark that the port was found and updated
-                xmlFree(name_attr);
-                break;
+                connectionNode = connectionNode->next;
             }
         }
         xmlFree(name_attr);
@@ -75,7 +89,7 @@ static void processCSVAndUpdateXML(xmlXPathObjectPtr xpathObj) {
             snprintf(capture_value, sizeof(capture_value), "system:capture_%d", capture);
 
             // Update the XML document in memory and check if the port was found
-            if ((port_found = updatePortNode(xpathObj, port_name, capture_value, 0)) < 0) {
+            if ((port_found = updatePortNode(xpathObj, port_name, capture_value)) < 0) {
             	return;
             }
             
@@ -155,7 +169,7 @@ int main(int argc, char *argv[]) {
     
     if (generate_csv) {
         // Generate CSV to stdout
-        updatePortNode(xpathObj, NULL, NULL, 1);
+        generateCSV(xpathObj);
     } else {
         // Update XML from CSV read from stdin
         processCSVAndUpdateXML(xpathObj);
