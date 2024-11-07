@@ -27,6 +27,11 @@ static int updatePortNode(xmlXPathObjectPtr xpathObj, const char* port_name, con
         // Update XML with new Connection node if port_name matches
         if (name_attr && xmlStrcmp(name_attr, (const xmlChar *)port_name) == 0) {
             xmlNodePtr new_node = xmlNewChild(portNode, NULL, (const xmlChar *)"Connection", NULL);
+            if (new_node == NULL) {
+                fprintf(stderr, COLOR_RED "Error: unable to create new child node\n" COLOR_RESET);
+                xmlFree(name_attr);
+                return -1;
+            }
             xmlNewProp(new_node, (const xmlChar *)"other", (const xmlChar *)capture_value);
 
             fprintf(stderr, COLOR_GREEN "%s : %s\n" COLOR_RESET, capture_value, port_name);
