@@ -24,22 +24,25 @@ static int updatePortNode(xmlXPathObjectPtr xpathObj, const char* port_name, con
         xmlNodePtr portNode = nodes->nodeTab[i];
         xmlChar* name_attr = xmlGetProp(portNode, (const xmlChar *)"name");
 
-        // Update XML with new Connection node if port_name matches
-        if (name_attr && xmlStrcmp(name_attr, (const xmlChar *)port_name) == 0) {
+        port_found = (name_attr && xmlStrcmp(name_attr, (const xmlChar *)port_name) == 0);
+        xmlFree(name_attr);
+        
+        if (port_found) {
+            // Update XML with new Connection node if port_name matches
             xmlNodePtr new_node = xmlNewChild(portNode, NULL, (const xmlChar *)"Connection", NULL);
             if (new_node == NULL) {
                 fprintf(stderr, COLOR_RED "Error: unable to create new child node\n" COLOR_RESET);
-                xmlFree(name_attr);
                 return -1;
             }
-            xmlNewProp(new_node, (const xmlChar *)"other", (const xmlChar *)capture_value);
+            xmlAttrPtr new_attr = xmlNewProp(new_node, (const xmlChar *)"other", (const xmlChar *)capture_value);
+            if (new_attr == NULL) {
+                fprintf(stderr, COLOR_RED "Error: unable to create new child node\n" COLOR_RESET);
+                return -1;            
+            }
 
             fprintf(stderr, COLOR_GREEN "%s : %s\n" COLOR_RESET, capture_value, port_name);
-            port_found++;  // Mark that the port was found and updated
-            xmlFree(name_attr);
             break;
         }
-        xmlFree(name_attr);
     }
 
     return port_found; // Return whether a port node was found
